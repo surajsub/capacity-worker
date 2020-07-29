@@ -2,32 +2,32 @@ package events
 
 import (
 	"errors"
+	"github.com/opaas/capacity-worker/client"
+	"github.com/opaas/capacity-worker/utils"
+	"github.com/sirupsen/logrus"
 	"strconv"
-        "github.com/sirupsen/logrus"
-        "github.com/opaas/capacity-worker/client"
-        "github.com/opaas/capacity-worker/utils"
 )
 
 type ClusterHostEvent struct {
-	StreamName    string         `json:"streamName"`
-        Data          []ClusterHost  `json:"data"`
+	StreamName string        `json:"streamName"`
+	Data       []ClusterHost `json:"data"`
 }
 
 type ClusterHost struct {
-	STREAMNAME    string `json:"STREAM_NAME"`
-	HOSTNAME      string `json:"HOSTNAME"`
-	POD           string `json:"PODID"`
-	CLUSTERNAME   string `json:"ESXNAME"`
-	DATACENTER    string `json:"DATACENTER"`
+	STREAMNAME  string `json:"STREAM_NAME"`
+	HOSTNAME    string `json:"HOSTNAME"`
+	POD         string `json:"PODID"`
+	CLUSTERNAME string `json:"ESXNAME"`
+	DATACENTER  string `json:"DATACENTER"`
 }
 
-func (event ClusterHostEvent) Process(offset int64, opaasData *opaas.OpaasData, SlData []internal.SoftLayerHosts) {
+func (event ClusterHostEvent) Process(offset int64, opaasData *client.OpaasData, SlData []utils.SoftLayerHosts) {
 	for _, clusterhost := range event.Data {
 		processClusterhost(clusterhost, opaasData, SlData)
 	}
 }
 
-func processClusterhost(clusterhost ClusterHost, opaasData *opaas.OpaasData, SlData []internal.SoftLayerHosts) {
+func processClusterhost(clusterhost ClusterHost, opaasData *client.OpaasData, SlData []utils.SoftLayerHosts) {
 	cluster := findCluster(clusterhost, opaasData)
 	if cluster == nil {
 		logFields := logrus.Fields{
@@ -53,7 +53,7 @@ func processClusterhost(clusterhost ClusterHost, opaasData *opaas.OpaasData, SlD
 			"clusterHost": clusterhost.HOSTNAME,
 		}
 		logrus.WithFields(logFields).Info("Cannot find matching hostname and serverID from SoftLayer")
-		return 
+		return
 	}
 	clusterHost := findClusterhost(clusterhost, opaasData)
 	if clusterHost == nil {
@@ -65,7 +65,7 @@ func processClusterhost(clusterhost ClusterHost, opaasData *opaas.OpaasData, SlD
 	}
 }
 
-func findClusterhost(clusterhost ClusterHost, opaasData *opaas.OpaasData) *opaas.Clusterhost {
+func findClusterhost(clusterhost ClusterHost, opaasData *client.OpaasData) *client.Clusterhost {
 	for _, hostrecord := range opaasData.Clusterhosts {
 		if hostrecord.Name == clusterhost.HOSTNAME {
 			return &hostrecord
@@ -74,12 +74,12 @@ func findClusterhost(clusterhost ClusterHost, opaasData *opaas.OpaasData) *opaas
 	return nil
 }
 
-func addNewClusterhost(clusterhost ClusterHost, cluster *opaas.Cluster, serverID string) {
-// code to build new cluster-host payload and send to opaas goes here
+func addNewClusterhost(clusterhost ClusterHost, cluster *client.Cluster, serverID string) {
+	// code to build new cluster-host payload and send to opaas goes here
 	sendAddClusterHostSlackMessage(cluster, clusterhost, serverID)
 }
 
-func findCluster(clusterhost ClusterHost, opaasData *opaas.OpaasData) *opaas.Cluster {
+func findCluster(clusterhost ClusterHost, opaasData *client.OpaasData) *client.Cluster {
 	for _, cluster := range opaasData.Clusters {
 		if cluster.ClusterName == clusterhost.CLUSTERNAME {
 			if cluster.Datacenter == clusterhost.DATACENTER {
@@ -92,7 +92,7 @@ func findCluster(clusterhost ClusterHost, opaasData *opaas.OpaasData) *opaas.Clu
 	return nil
 }
 
-func findServerID(clusterhost ClusterHost, SlData []internal.SoftLayerHosts) (error, string) {
+func findServerID(clusterhost ClusterHost, SlData []utils.SoftLayerHosts) (error, string) {
 	var err error = nil
 	for _, slHost := range SlData {
 		if slHost.FQDN == clusterhost.HOSTNAME {
@@ -103,23 +103,23 @@ func findServerID(clusterhost ClusterHost, SlData []internal.SoftLayerHosts) (er
 	return err, clusterhost.HOSTNAME
 }
 
-func sendNewServerIDSlackMessage(clusterHost *opaas.Clusterhost, cluster *opaas.Cluster, serverId string) {
-	slackCHParams := &internal.SlackCHParams{
+func sendNewServerIDSlackMessage(clusterHost *client.Clusterhost, cluster *client.Cluster, serverId string) {
+	slackCHParams := &utils.SlackCHParams{
 		Hostname:    clusterHost.Name,
 		ServerId:    serverId,
 		OldServerId: clusterHost.ServerID,
 		Profile:     cluster.Profile,
 	}
-	internal.SendNewServerIdSlackMessage(slackCHParams)
+	utils.SendNewServerIdSlackMessage(slackCHParams)
 }
 
-func sendAddClusterHostSlackMessage(cluster *opaas.Cluster, clusterhost ClusterHost, serverID string) {
-	slackCHParams := &internal.SlackCHParams{
+func sendAddClusterHostSlackMessage(cluster *client.Cluster, clusterhost ClusterHost, serverID string) {
+	slackCHParams := &utils.SlackCHParams{
 		Hostname:      clusterhost.HOSTNAME,
 		ServerId:      serverID,
 		WorkloadTypes: cluster.WorkloadTypes,
 		ClusterId:     cluster.ID,
 		Profile:       cluster.Profile,
 	}
-	internal.SendAddClusterHostSlackMessage(slackCHParams)
+	utils.SendAddClusterHostSlackMessage(slackCHParams)
 }

@@ -6,7 +6,7 @@ import (
 )
 
 type Event interface {
-	Process(offset int64, opaasData *opaas.OpaasData, SlData []internal.SoftLayerHosts)
+	Process(offset int64, opaasData *client.OpaasData, SlData []utils.SoftLayerHosts)
 }
 
 func mapSites(site string) string {
@@ -18,4 +18,3 @@ func mapSites(site string) string {
 	}
 	return site
 }
-

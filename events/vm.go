@@ -1,9 +1,9 @@
 package events
 
 import (
-	"github.com/sirupsen/logrus"
 	"github.com/opaas/capacity-worker/client"
 	"github.com/opaas/capacity-worker/utils"
+	"github.com/sirupsen/logrus"
 )
 
 const instance_csv_file string = "output/Instances.csv"
@@ -27,8 +27,8 @@ type VMEvent struct {
 	VMs        []VM   `json:"data"`
 }
 
-func (event VMEvent) Process(offset int64, opaasData *opaas.OpaasData, SlData []internal.SoftLayerHosts) {
-	vmCSVs := []ioUtils.CSVInfo{}
+func (event VMEvent) Process(offset int64, opaasData *client.OpaasData, SlData []utils.SoftLayerHosts) {
+	vmCSVs := []utils.CSVInfo{}
 	for _, vm := range event.VMs {
 		vmCSV := processVM(vm, opaasData)
 		vmCSVs = append(vmCSVs, vmCSV)
@@ -36,7 +36,7 @@ func (event VMEvent) Process(offset int64, opaasData *opaas.OpaasData, SlData []
 	writeVMCSV(offset, vmCSVs)
 }
 
-func processVM(vm VM, opaasData *opaas.OpaasData) *ioUtils.VMCSV {
+func processVM(vm VM, opaasData *client.OpaasData) *utils.VMCSV {
 	vm.SITEID = mapSites(vm.SITEID)
 	vmCSV := createVMCSV(vm)
 	opaasInstance := findMatchingVM(vm, opaasData)
@@ -46,7 +46,7 @@ func processVM(vm VM, opaasData *opaas.OpaasData) *ioUtils.VMCSV {
 	return vmCSV
 }
 
-func findMatchingVM(vm VM, opaasData *opaas.OpaasData) *opaas.Instance {
+func findMatchingVM(vm VM, opaasData *client.OpaasData) *client.Instance {
 	logFields := logrus.Fields{
 		"hostname": vm.VMName,
 	}
@@ -61,8 +61,8 @@ func findMatchingVM(vm VM, opaasData *opaas.OpaasData) *opaas.Instance {
 	return nil
 }
 
-func createVMCSV(vm VM) *ioUtils.VMCSV {
-	return &ioUtils.VMCSV{
+func createVMCSV(vm VM) *utils.VMCSV {
+	return &utils.VMCSV{
 		Hostname:           vm.VMName,
 		VcenterCPU:         vm.CPU,
 		MEMORYREQUESTEDGB:  vm.MEMORYREQUESTEDGB,
@@ -80,7 +80,7 @@ func createVMCSV(vm VM) *ioUtils.VMCSV {
 	}
 }
 
-func addOpaasVMCSVInfo(opaasInstance *opaas.Instance, vmCSV *ioUtils.VMCSV) {
+func addOpaasVMCSVInfo(opaasInstance *client.Instance, vmCSV *utils.VMCSV) {
 	vmCSV.Cdir = opaasInstance.Cdir
 	vmCSV.Profile = opaasInstance.Profile
 	vmCSV.ResourceStatus = opaasInstance.ResourceStatus
@@ -97,7 +97,7 @@ func addOpaasVMCSVInfo(opaasInstance *opaas.Instance, vmCSV *ioUtils.VMCSV) {
 	}
 }
 
-func getTotalOpaasInstanceStorage(opaasInstance *opaas.Instance) int {
+func getTotalOpaasInstanceStorage(opaasInstance *client.Instance) int {
 	totalStorage := 0
 	for _, storage := range opaasInstance.Storage {
 		totalStorage += storage.Size
@@ -105,12 +105,12 @@ func getTotalOpaasInstanceStorage(opaasInstance *opaas.Instance) int {
 	return totalStorage
 }
 
-func writeVMCSV(offset int64, vmCSVs []ioUtils.CSVInfo) {
+func writeVMCSV(offset int64, vmCSVs []utils.CSVInfo) {
 	logFields := logrus.Fields{
 		"offset": offset,
 	}
 	logrus.WithFields(logFields).Info("Writting vm information to csv")
-	csvErr := ioUtils.WriteToCSV(instance_csv_file, vmCSVs)
+	csvErr := utils.WriteToCSV(instance_csv_file, vmCSVs)
 	if csvErr != nil {
 		logrus.WithFields(logrus.Fields{
 			"offset": offset,

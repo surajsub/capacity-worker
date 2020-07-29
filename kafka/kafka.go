@@ -1,7 +1,6 @@
 package kafka
 
 import (
-
 	"crypto/tls"
 	"github.com/opaas/capacity-worker/utils"
 	"time"
@@ -9,8 +8,6 @@ import (
 	kafkaGo "github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl/plain"
 	"github.com/sirupsen/logrus"
-	"github.com/opaas/capacity-worker"
-
 )
 
 type KafkaEvent struct {
@@ -49,7 +46,7 @@ func createKafkaDialer(kafkaConfig *utils.KafkaConfig) *kafkaGo.Dialer {
 }
 
 func getCurrentOffset() int64 {
-	lastOffsetRecorded, offsetErr := ioUtils.ReadOffset()
+	lastOffsetRecorded, offsetErr := utils.ReadOffset()
 	if offsetErr != nil {
 		logrus.WithFields(logrus.Fields{
 			"Error": offsetErr.Error(),

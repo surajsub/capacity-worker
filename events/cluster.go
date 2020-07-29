@@ -3,9 +3,9 @@ package events
 import (
 	"strconv"
 
-	"github.com/sirupsen/logrus"
 	"github.com/opaas/capacity-worker/client"
 	"github.com/opaas/capacity-worker/utils"
+	"github.com/sirupsen/logrus"
 )
 
 type Cluster struct {
@@ -30,7 +30,7 @@ type ClusterEvent struct {
 	Clusters   []Cluster `json:"data"`
 }
 
-func (event ClusterEvent) Process(offset int64, opaasData *opaas.OpaasData, SlData []internal.SoftLayerHosts) {
+func (event ClusterEvent) Process(offset int64, opaasData *client.OpaasData, SlData []utils.SoftLayerHosts) {
 	if event.StreamName == "xseries.resource_pool" {
 		processResourcePools(offset, event, opaasData)
 		return
@@ -38,7 +38,7 @@ func (event ClusterEvent) Process(offset int64, opaasData *opaas.OpaasData, SlDa
 	processClusters(offset, event, opaasData)
 }
 
-func processResourcePools(offset int64, event ClusterEvent, opaasData *opaas.OpaasData) {
+func processResourcePools(offset int64, event ClusterEvent, opaasData *client.OpaasData) {
 	for _, resourcePool := range event.Clusters {
 		if is3x(resourcePool) {
 			processResourcePool(offset, resourcePool, opaasData)
@@ -46,7 +46,7 @@ func processResourcePools(offset int64, event ClusterEvent, opaasData *opaas.Opa
 	}
 }
 
-func processClusters(offset int64, event ClusterEvent, opaasData *opaas.OpaasData) {
+func processClusters(offset int64, event ClusterEvent, opaasData *client.OpaasData) {
 	for _, cluster := range event.Clusters {
 		if !is3x(cluster) {
 			processCluster(offset, cluster, opaasData)
@@ -58,7 +58,7 @@ func is3x(cluster Cluster) bool {
 	return cluster.Version == "CMS 3.x"
 }
 
-func processResourcePool(offset int64, resourcePool Cluster, opaasData *opaas.OpaasData) {
+func processResourcePool(offset int64, resourcePool Cluster, opaasData *client.OpaasData) {
 	resourcePool.SiteID = mapSites(resourcePool.SiteID)
 	opaasCluster := findMatchingOpaasClusterWithResourcePool(resourcePool, opaasData)
 	if opaasCluster != nil {
@@ -67,7 +67,7 @@ func processResourcePool(offset int64, resourcePool Cluster, opaasData *opaas.Op
 	}
 }
 
-func processCluster(offset int64, cluster Cluster, opaasData *opaas.OpaasData) {
+func processCluster(offset int64, cluster Cluster, opaasData *client.OpaasData) {
 	cluster.SiteID = mapSites(cluster.SiteID)
 	opaasCluster := findMatchingOpaasClusterWithCluster(cluster, opaasData.Clusters)
 	if opaasCluster != nil {
@@ -76,7 +76,7 @@ func processCluster(offset int64, cluster Cluster, opaasData *opaas.OpaasData) {
 	}
 }
 
-func findMatchingOpaasClusterWithResourcePool(resourcePool Cluster, opaasData *opaas.OpaasData) *opaas.Cluster {
+func findMatchingOpaasClusterWithResourcePool(resourcePool Cluster, opaasData *client.OpaasData) *client.Cluster {
 	logFields := logrus.Fields{
 		"site":             resourcePool.SiteID,
 		"pod":              resourcePool.Pod,
@@ -94,7 +94,7 @@ func findMatchingOpaasClusterWithResourcePool(resourcePool Cluster, opaasData *o
 	return nil
 }
 
-func findMatchingOpaasClusterWithCluster(cluster Cluster, opaasClusters []opaas.Cluster) *opaas.Cluster {
+func findMatchingOpaasClusterWithCluster(cluster Cluster, opaasClusters []client.Cluster) *client.Cluster {
 	logFields := logrus.Fields{
 		"site":        cluster.SiteID,
 		"datacenter":  cluster.Datacenter,
@@ -111,7 +111,7 @@ func findMatchingOpaasClusterWithCluster(cluster Cluster, opaasClusters []opaas.
 	return nil
 }
 
-func clusterMatchesResourcePool(resourcePool Cluster, opaasCluster opaas.Cluster) bool {
+func clusterMatchesResourcePool(resourcePool Cluster, opaasCluster client.Cluster) bool {
 	clusterPodInt, atoiErr := strconv.Atoi(resourcePool.Pod)
 	if atoiErr != nil {
 		logrus.WithFields(logrus.Fields{
@@ -126,14 +126,14 @@ func clusterMatchesResourcePool(resourcePool Cluster, opaasCluster opaas.Cluster
 		opaasCluster.ResourcePoolName == resourcePool.PoolName
 }
 
-func clusterMatchesCluster(opaasCluster opaas.Cluster, cluster Cluster) bool {
+func clusterMatchesCluster(opaasCluster client.Cluster, cluster Cluster) bool {
 	return opaasCluster.PoolLocation == cluster.SiteID &&
 		opaasCluster.Datacenter == cluster.Datacenter &&
 		opaasCluster.ClusterName == cluster.EsxName
 }
 
 func sendClusterSlackMessage(cluster Cluster, profile string) {
-	slackParams := &internal.SlackParams{
+	slackParams := &utils.SlackParams{
 		EsxName:                cluster.EsxName,
 		PoolName:               cluster.PoolName,
 		Pod:                    cluster.Pod,
@@ -148,10 +148,10 @@ func sendClusterSlackMessage(cluster Cluster, profile string) {
 	logrus.WithFields(logrus.Fields{
 		"slackParams": slackParams,
 	}).Info("Sending message to slack for cluster")
-	internal.SendSlackMessage(slackParams)
+	utils.SendSlackMessage(slackParams)
 }
 
-func patchClusterIfNecessary(cluster Cluster, opaasCluster *opaas.Cluster) {
+func patchClusterIfNecessary(cluster Cluster, opaasCluster *client.Cluster) {
 	patches := createNecessaryClusterPatches(cluster, opaasCluster)
 	logFields := logrus.Fields{
 		"patches":          patches,
@@ -166,8 +166,8 @@ func patchClusterIfNecessary(cluster Cluster, opaasCluster *opaas.Cluster) {
 	patchCluster(opaasCluster.ID, patches)
 }
 
-func createNecessaryClusterPatches(cluster Cluster, opaasCluster *opaas.Cluster) []opaas.Patch {
-	patches := []opaas.Patch{}
+func createNecessaryClusterPatches(cluster Cluster, opaasCluster *client.Cluster) []client.Patch {
+	patches := []client.Patch{}
 	if cpuPatchIsNecessary(cluster, opaasCluster) {
 		patches = append(patches, createCPUPatch(cluster))
 	}
@@ -177,34 +177,34 @@ func createNecessaryClusterPatches(cluster Cluster, opaasCluster *opaas.Cluster)
 	return patches
 }
 
-func cpuPatchIsNecessary(cluster Cluster, opaasCluster *opaas.Cluster) bool {
+func cpuPatchIsNecessary(cluster Cluster, opaasCluster *client.Cluster) bool {
 	return opaasCluster.CPUInUseByOpaas != cluster.CPURequested &&
 		opaasCluster.VCenterCPUConsumed != cluster.CPURequested
 }
 
-func memoryPatchIsNecessary(cluster Cluster, opaasCluster *opaas.Cluster) bool {
+func memoryPatchIsNecessary(cluster Cluster, opaasCluster *client.Cluster) bool {
 	return opaasCluster.MemoryInUseByOpaas != cluster.MemoryRequested &&
 		opaasCluster.VCenterMemoryConsumed != cluster.MemoryRequested
 }
 
-func createCPUPatch(cluster Cluster) opaas.Patch {
-	return opaas.Patch{
+func createCPUPatch(cluster Cluster) client.Patch {
+	return client.Patch{
 		Op:    "replace",
 		Path:  "/vCenterCpuConsumed",
 		Value: cluster.CPURequested,
 	}
 }
 
-func createMemoryPatch(cluster Cluster) opaas.Patch {
-	return opaas.Patch{
+func createMemoryPatch(cluster Cluster) client.Patch {
+	return client.Patch{
 		Op:    "replace",
 		Path:  "/vCenterMemoryConsumed",
 		Value: cluster.MemoryRequested,
 	}
 }
 
-func patchCluster(clusterID string, patches []opaas.Patch) {
-	opaasAPI := opaas.NewOpaasApi()
+func patchCluster(clusterID string, patches []client.Patch) {
+	opaasAPI := client.NewOpaasApi()
 	clusterPatchErr := opaasAPI.PatchCluster(clusterID, patches)
 	if clusterPatchErr != nil {
 		logrus.WithFields(logrus.Fields{
