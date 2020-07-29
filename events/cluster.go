@@ -4,7 +4,7 @@ import (
 	"strconv"
 
 	"github.com/sirupsen/logrus"
-	"github.com/opaas/capacity-worker/utils"
+	"github.com/opaas/capacity-worker/client"
 	"github.com/opaas/capacity-worker/utils"
 )
 
